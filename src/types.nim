@@ -210,6 +210,8 @@ type
     video*: Option[Video]
     photos*: seq[string]
 
+  Tweets* = seq[Tweet]
+
   Result*[T] = object
     content*: seq[T]
     top*, bottom*: string
@@ -217,7 +219,7 @@ type
     query*: Query
 
   Chain* = object
-    content*: seq[Tweet]
+    content*: Tweets
     hasMore*: bool
     cursor*: string
 
@@ -227,7 +229,7 @@ type
     after*: Chain
     replies*: Result[Chain]
 
-  Timeline* = Result[Tweet]
+  Timeline* = Result[Tweets]
   UsersTimeline* = Result[User]
 
   Profile* = object
@@ -283,3 +285,6 @@ type
 
 proc contains*(thread: Chain; tweet: Tweet): bool =
   thread.content.anyIt(it.id == tweet.id)
+
+proc add*(timeline: var seq[Tweets]; tweet: Tweet) =
+  timeline.add @[tweet]

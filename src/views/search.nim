@@ -3,7 +3,7 @@ import strutils, strformat, sequtils, unicode, tables, options
 import karax/[karaxdsl, vdom]
 
 import renderutils, timeline
-import ".."/[types, query]
+import ".."/[types, query, config]
 
 const toggles = {
   "nativeretweets": "Retweets",
@@ -91,7 +91,7 @@ proc renderSearchPanel*(query: Query): VNode =
           span(class="search-title"): text "Near"
           genInput("near", "", query.near, "Location...", autofocus=false)
 
-proc renderTweetSearch*(results: Result[Tweet]; cfg: Config; prefs: Prefs; path: string;
+proc renderTweetSearch*(results: Timeline; prefs: Prefs; path: string;
                         pinned=none(Tweet)): VNode =
   let query = results.query
   buildHtml(tdiv(class="timeline-container")):

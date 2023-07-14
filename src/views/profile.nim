@@ -120,4 +120,4 @@ proc renderProfile*(profile: var Profile; cfg: Config; prefs: Prefs; path: strin
     if profile.user.protected:
       renderProtected(profile.user.username)
     else:
-      renderTweetSearch(profile.tweets, cfg, prefs, path, profile.pinned)
+      renderTweetSearch(profile.tweets, prefs, path, profile.pinned)
