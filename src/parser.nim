@@ -29,7 +29,11 @@ proc parseUser(js: JsonNode; id=""): User =
   result.expandUserEntities(js)
 
 proc parseGraphUser(js: JsonNode): User =
-  let user = ? js{"user_results", "result"}
+  var user: JsonNode
+  if "user_result" in js:
+    user = ? js{"user_result", "result"}
+  else:
+    user = ? js{"user_results", "result"}
   result = parseUser(user{"legacy"})
 
   if "is_blue_verified" in user:
