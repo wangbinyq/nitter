@@ -76,7 +76,7 @@ proc getGraphListMembers*(list: List; after=""): Future[Result[User]] {.async.} 
   let url = graphListMembers ? {"variables": $variables, "features": gqlFeatures}
   result = parseGraphListMembers(await fetchRaw(url, Api.listMembers), after)
 
-proc getFavorites*(id: string; cfg: Config; after=""): Future[Timeline] {.async.} =
+proc getFavorites*(id: string; cfg: Config; after=""): Future[Profile] {.async.} =
   if id.len == 0: return
   let
     ps = genParams({"userId": id}, after)

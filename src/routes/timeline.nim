@@ -57,7 +57,7 @@ proc fetchProfile*(after: string; query: Query; cfg: Config; skipRail=false;
     of posts: await getTimeline(userId, after)
     of replies: await getGraphUserTweets(userId, TimelineKind.replies, after)
     of media: await getGraphUserTweets(userId, TimelineKind.media, after)
-    of favorites: Profile(tweets: await getFavorites(userId, cfg, after))
+    of favorites: await getFavorites(userId, cfg, after)
     else: Profile(tweets: await getTweetSearch(query, after))
 
   result.user = await user
