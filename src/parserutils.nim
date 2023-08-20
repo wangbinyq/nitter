@@ -36,7 +36,7 @@ template with*(ident, value, body): untyped =
 template with*(ident; value: JsonNode; body): untyped =
   if true:
     let ident {.inject.} = value
-    if value.notNull: body
+    if value.kind != JNull: body
 
 template getCursor*(js: JsonNode): string =
   js{"content", "operation", "cursor", "value"}.getStr
@@ -147,6 +147,12 @@ proc getMp4Resolution*(url: string): int =
   except ValueError:
     # cannot determine resolution (e.g. m3u8/non-mp4 video)
     return 0
+
+proc getVideoViewCount*(js: JsonNode): string =
+  with stats, js{"ext_media_stats"}:
+    return stats{"view_count"}.getStr($stats{"viewCount"}.getInt)
+
+  return $js{"mediaStats", "viewCount"}.getInt(0)
 
 proc extractSlice(js: JsonNode): Slice[int] =
   result = js["indices"][0].getInt ..< js["indices"][1].getInt

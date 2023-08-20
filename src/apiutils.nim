@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
-import httpclient, asyncdispatch, options, strutils, uri
-import jsony, packedjson, zippy
+import httpclient, asyncdispatch, options, strutils, uri, times, math, tables
+import jsony, packedjson, zippy, oauth1
 import types, tokens, consts, parserutils, http_pool
 import experimental/types/common
 import config
@@ -17,8 +17,8 @@ proc genParams*(pars: openArray[(string, string)] = @[]; cursor="";
   for p in pars:
     result &= p
   if ext:
-    result &= ("ext", "mediaStats,isBlueVerified,isVerified,blue,blueVerified")
     result &= ("include_ext_alt_text", "1")
+    result &= ("include_ext_media_stats", "1")
     result &= ("include_ext_media_availability", "1")
   if count.len > 0:
     result &= ("count", count)
@@ -30,12 +30,30 @@ proc genParams*(pars: openArray[(string, string)] = @[]; cursor="";
     else:
       result &= ("cursor", cursor)
 
-proc genHeaders*(token: Token = nil): HttpHeaders =
+proc getOauthHeader(url, oauthToken, oauthTokenSecret: string): string =
+  let
+    encodedUrl = url.replace(",", "%2C").replace("+", "%20")
+    params = OAuth1Parameters(
+      consumerKey: consumerKey,
+      signatureMethod: "HMAC-SHA1",
+      timestamp: $int(round(epochTime())),
+      nonce: "0",
+      isIncludeVersionToHeader: true,
+      token: oauthToken
+    )
+    signature = getSignature(HttpGet, encodedUrl, "", params, consumerSecret, oauthTokenSecret)
+
+  params.signature = percentEncode(signature)
+
+  return getOauth1RequestHeader(params)["authorization"]
+
+proc genHeaders*(url, oauthToken, oauthTokenSecret: string): HttpHeaders =
+  let header = getOauthHeader(url, oauthToken, oauthTokenSecret)
+
   result = newHttpHeaders({
     "connection": "keep-alive",
-    "authorization": auth,
+    "authorization": header,
     "content-type": "application/json",
-    "x-guest-token": if token == nil: "" else: token.tok,
     "x-twitter-active-user": "yes",
     "authority": "api.twitter.com",
     "accept-encoding": "gzip",
@@ -44,24 +62,24 @@ proc genHeaders*(token: Token = nil): HttpHeaders =
     "DNT": "1"
   })
 
-template updateToken() =
+template updateAccount() =
   if resp.headers.hasKey(rlRemaining):
     let
       remaining = parseInt(resp.headers[rlRemaining])
       reset = parseInt(resp.headers[rlReset])
-    token.setRateLimit(api, remaining, reset)
+    account.setRateLimit(api, remaining, reset)
 
 template fetchImpl(result, additional_headers, fetchBody) {.dirty.} =
   once:
     pool = HttpPool()
 
-  var token = await getToken(api)
-  if token.tok.len == 0:
+  var account = await getGuestAccount(api)
+  if account.oauthToken.len == 0:
     raise rateLimitError()
 
   try:
     var resp: AsyncResponse
-    var headers = genHeaders(token)
+    var headers = genHeaders($url, account.oauthToken, account.oauthSecret)
     for key, value in additional_headers.pairs():
       headers.add(key, value)
     pool.use(headers):
@@ -86,19 +104,19 @@ template fetchImpl(result, additional_headers, fetchBody) {.dirty.} =
 
     fetchBody
 
-    release(token, used=true)
+    release(account, used=true)
 
     if resp.status == $Http400:
       raise newException(InternalError, $url)
   except InternalError as e:
     raise e
   except BadClientError as e:
-    release(token, used=true)
+    release(account, used=true)
     raise e
   except Exception as e:
-    echo "error: ", e.name, ", msg: ", e.msg, ", token: ", token[], ", url: ", url
+    echo "error: ", e.name, ", msg: ", e.msg, ", accountId: ", account.id, ", url: ", url
     if "length" notin e.msg and "descriptor" notin e.msg:
-      release(token, invalid=true)
+      release(account, invalid=true)
     raise rateLimitError()
 
 proc fetch*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders()): Future[JsonNode] {.async.} =
@@ -116,12 +134,12 @@ proc fetch*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders
       echo resp.status, ": ", body, " --- url: ", url
       result = newJNull()
 
-    updateToken()
+    updateAccount()
 
     let error = result.getError
     if error in {invalidToken, badToken}:
       echo "fetch error: ", result.getError
-      release(token, invalid=true)
+      release(account, invalid=true)
       raise rateLimitError()
 
 proc fetchRaw*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders()): Future[string] {.async.} =
@@ -130,11 +148,11 @@ proc fetchRaw*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHead
       echo resp.status, ": ", result, " --- url: ", url
       result.setLen(0)
 
-    updateToken()
+    updateAccount()
 
     if result.startsWith("{\"errors"):
       let errors = result.fromJson(Errors)
       if errors in {invalidToken, badToken}:
         echo "fetch error: ", errors
-        release(token, invalid=true)
+        release(account, invalid=true)
         raise rateLimitError()

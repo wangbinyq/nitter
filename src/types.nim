@@ -17,10 +17,8 @@ type
   Api* {.pure.} = enum
     tweetDetail
     tweetResult
-    timeline
     photoRail
     search
-    userSearch
     list
     listBySlug
     listMembers
@@ -39,10 +37,14 @@ type
   RateLimit* = object
     remaining*: int
     reset*: int
+    limited*: bool
+    limitedAt*: int
 
-  Token* = ref object
-    tok*: string
-    init*: Time
+  GuestAccount* = ref object
+    id*: string
+    oauthToken*: string
+    oauthSecret*: string
+    # init*: Time
     lastUse*: Time
     pending*: int
     apis*: Table[Api, RateLimit]
