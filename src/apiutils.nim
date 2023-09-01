@@ -75,6 +75,7 @@ template fetchImpl(result, additional_headers, fetchBody) {.dirty.} =
 
   var account = await getGuestAccount(api)
   if account.oauthToken.len == 0:
+    echo "[accounts] Empty oauth token, account: ", account.id
     raise rateLimitError()
 
   try:
@@ -96,28 +97,47 @@ template fetchImpl(result, additional_headers, fetchBody) {.dirty.} =
         badClient = true
         raise newException(BadClientError, "Bad client")
 
+    if resp.headers.hasKey(rlRemaining):
+      let
+        remaining = parseInt(resp.headers[rlRemaining])
+        reset = parseInt(resp.headers[rlReset])
+      account.setRateLimit(api, remaining, reset)
+
     if result.len > 0:
       if resp.headers.getOrDefault("content-encoding") == "gzip":
         result = uncompress(result, dfGzip)
-      else:
-        echo "non-gzip body, url: ", url, ", body: ", result
+
+      if result.startsWith("{\"errors"):
+        let errors = result.fromJson(Errors)
+        if errors in {expiredToken, badToken}:
+          echo "fetch error: ", errors
+          invalidate(account)
+          raise rateLimitError()
+        elif errors in {rateLimited}:
+          # rate limit hit, resets after 24 hours
+          setLimited(account, api)
+          raise rateLimitError()
+      elif result.startsWith("429 Too Many Requests"):
+        echo "[accounts] 429 error, API: ", api, ", account: ", account.id
+        account.apis[api].remaining = 0
+        # rate limit hit, resets after the 15 minute window
+        raise rateLimitError()
 
     fetchBody
-
-    release(account, used=true)
 
     if resp.status == $Http400:
       raise newException(InternalError, $url)
   except InternalError as e:
     raise e
   except BadClientError as e:
-    release(account, used=true)
+    raise e
+  except OSError as e:
     raise e
   except Exception as e:
     echo "error: ", e.name, ", msg: ", e.msg, ", accountId: ", account.id, ", url: ", url
-    if "length" notin e.msg and "descriptor" notin e.msg:
-      release(account, invalid=true)
     raise rateLimitError()
+  finally:
+    release(account)
 
 proc fetch*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders()): Future[JsonNode] {.async.} =
 
@@ -134,12 +154,10 @@ proc fetch*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders
       echo resp.status, ": ", body, " --- url: ", url
       result = newJNull()
 
-    updateAccount()
-
     let error = result.getError
-    if error in {invalidToken, badToken}:
-      echo "fetch error: ", result.getError
-      release(account, invalid=true)
+    if error in {expiredToken, badToken}:
+      echo "fetchBody error: ", error
+      invalidate(account)
       raise rateLimitError()
 
 proc fetchRaw*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders()): Future[string] {.async.} =
@@ -147,12 +165,3 @@ proc fetchRaw*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHead
     if not (result.startsWith('{') or result.startsWith('[')):
       echo resp.status, ": ", result, " --- url: ", url
       result.setLen(0)
-
-    updateAccount()
-
-    if result.startsWith("{\"errors"):
-      let errors = result.fromJson(Errors)
-      if errors in {invalidToken, badToken}:
-        echo "fetch error: ", errors
-        release(account, invalid=true)
-        raise rateLimitError()

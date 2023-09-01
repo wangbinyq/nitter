@@ -19,6 +19,7 @@ type
     tweetResult
     photoRail
     search
+    userSearch
     list
     listBySlug
     listMembers
@@ -44,8 +45,6 @@ type
     id*: string
     oauthToken*: string
     oauthSecret*: string
-    # init*: Time
-    lastUse*: Time
     pending*: int
     apis*: Table[Api, RateLimit]
 
@@ -60,7 +59,7 @@ type
     userNotFound = 50
     suspended = 63
     rateLimited = 88
-    invalidToken = 89
+    expiredToken = 89
     listIdOrSlug = 112
     tweetNotFound = 144
     tweetNotAuthorized = 179
