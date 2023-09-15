@@ -134,10 +134,18 @@ template fetchImpl(result, additional_headers, fetchBody) {.dirty.} =
   except OSError as e:
     raise e
   except Exception as e:
-    echo "error: ", e.name, ", msg: ", e.msg, ", accountId: ", account.id, ", url: ", url
+    let id = if account.isNil: "null" else: account.id
+    echo "error: ", e.name, ", msg: ", e.msg, ", accountId: ", id, ", url: ", url
     raise rateLimitError()
   finally:
     release(account)
+
+template retry(bod) =
+  try:
+    bod
+  except RateLimitError:
+    echo "[accounts] Rate limited, retrying ", api, " request..."
+    bod
 
 proc fetch*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders()): Future[JsonNode] {.async.} =
 
@@ -146,22 +154,24 @@ proc fetch*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders
   if len(cfg.xCsrfToken) != 0:
       additional_headers.add("x-csrf-token", cfg.xCsrfToken)
 
-  var body: string
-  fetchImpl(body, additional_headers):
-    if body.startsWith('{') or body.startsWith('['):
-      result = parseJson(body)
-    else:
-      echo resp.status, ": ", body, " --- url: ", url
-      result = newJNull()
+  retry:
+    var body: string
+    fetchImpl(body, additional_headers):
+      if body.startsWith('{') or body.startsWith('['):
+        result = parseJson(body)
+      else:
+        echo resp.status, ": ", body, " --- url: ", url
+        result = newJNull()
 
-    let error = result.getError
-    if error in {expiredToken, badToken}:
-      echo "fetchBody error: ", error
-      invalidate(account)
-      raise rateLimitError()
+      let error = result.getError
+      if error in {expiredToken, badToken}:
+        echo "fetchBody error: ", error
+        invalidate(account)
+        raise rateLimitError()
 
 proc fetchRaw*(url: Uri; api: Api; additional_headers: HttpHeaders = newHttpHeaders()): Future[string] {.async.} =
-  fetchImpl(result, additional_headers):
-    if not (result.startsWith('{') or result.startsWith('[')):
-      echo resp.status, ": ", result, " --- url: ", url
-      result.setLen(0)
+  retry:
+    fetchImpl(result, additional_headers):
+      if not (result.startsWith('{') or result.startsWith('[')):
+        echo resp.status, ": ", result, " --- url: ", url
+        result.setLen(0)
