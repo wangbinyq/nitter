@@ -4,11 +4,10 @@ import config
 from net import Port
 from htmlgen import a
 from os import getEnv
-from json import parseJson
 
 import jester
 
-import types, config, prefs, formatters, redis_cache, http_pool, tokens
+import types, config, prefs, formatters, redis_cache, http_pool, auth
 import views/[general, about]
 import routes/[
   preferences, timeline, status, media, search, rss, list, debug,
@@ -19,9 +18,8 @@ const issuesUrl = "https://github.com/zedeus/nitter/issues"
 
 let
   accountsPath = getEnv("NITTER_ACCOUNTS_FILE", "./guest_accounts.json")
-  accounts = parseJson(readFile(accountsPath))
 
-initAccountPool(cfg, parseJson(readFile(accountsPath)))
+initAccountPool(cfg, accountsPath)
 
 if not cfg.enableDebug:
   # Silence Jester's query warning

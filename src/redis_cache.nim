@@ -52,6 +52,7 @@ proc initRedisPool*(cfg: Config) {.async.} =
     await migrate("profileDates", "p:*")
     await migrate("profileStats", "p:*")
     await migrate("userType", "p:*")
+    await migrate("verifiedType", "p:*")
 
     pool.withAcquire(r):
       # optimize memory usage for user ID buckets
@@ -85,7 +86,7 @@ proc cache*(data: List) {.async.} =
   await setEx(data.listKey, listCacheTime, compress(toFlatty(data)))
 
 proc cache*(data: PhotoRail; name: string) {.async.} =
-  await setEx("pr:" & toLower(name), baseCacheTime, compress(toFlatty(data)))
+  await setEx("pr:" & toLower(name), baseCacheTime * 2, compress(toFlatty(data)))
 
 proc cache*(data: User) {.async.} =
   if data.username.len == 0: return

@@ -10,16 +10,13 @@ type
   BadClientError* = object of CatchableError
 
   TimelineKind* {.pure.} = enum
-    tweets
-    replies
-    media
+    tweets, replies, media
 
   Api* {.pure.} = enum
     tweetDetail
     tweetResult
     photoRail
     search
-    userSearch
     list
     listBySlug
     listMembers
@@ -42,7 +39,7 @@ type
     limitedAt*: int
 
   GuestAccount* = ref object
-    id*: string
+    id*: int64
     oauthToken*: string
     oauthSecret*: string
     pending*: int
@@ -69,6 +66,12 @@ type
     tweetUnavailable = 421
     tweetCensored = 422
 
+  VerifiedType* = enum
+    none = "None"
+    blue = "Blue"
+    business = "Business"
+    government = "Government"
+
   User* = object
     id*: string
     username*: string
@@ -84,7 +87,7 @@ type
     tweets*: int
     likes*: int
     media*: int
-    verified*: bool
+    verifiedType*: VerifiedType
     protected*: bool
     suspended*: bool
     joinDate*: DateTime
@@ -168,9 +171,10 @@ type
     imageDirectMessage = "image_direct_message"
     audiospace = "audiospace"
     newsletterPublication = "newsletter_publication"
+    jobDetails = "job_details"
     hidden
     unknown
-    
+
   Card* = object
     kind*: CardKind
     url*: string
