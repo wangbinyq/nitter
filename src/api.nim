@@ -103,7 +103,7 @@ proc getGraphTweetSearch*(query: Query; after=""): Future[Timeline] {.async.} =
   var
     variables = %*{
       "rawQuery": q,
-      "count": 20,
+      "count": 100,
       "product": "Latest",
       "withDownvotePerspective": false,
       "withReactionsMetadata": false,
@@ -122,7 +122,7 @@ proc getGraphUserSearch*(query: Query; after=""): Future[Result[User]] {.async.}
   var
     variables = %*{
       "rawQuery": query.text,
-      "count": 20,
+      "count": 100,
       "product": "People",
       "withDownvotePerspective": false,
       "withReactionsMetadata": false,
