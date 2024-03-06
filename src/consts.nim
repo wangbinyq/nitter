@@ -107,10 +107,10 @@ const
 
   userTweetsVariables* = """{
   "rest_id": "$1", $2
-  "count": 20
+  "count": 100
 }"""
 
   listTweetsVariables* = """{
   "rest_id": "$1", $2
-  "count": 20
+  "count": 100
 }"""
